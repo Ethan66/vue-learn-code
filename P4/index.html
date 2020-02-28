@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app">
+    <h2>{{person.name}} -- {{person.age}}</h2>
+    <h3>{{person.fav}}</h3>
+    <ul>
+      <li>1</li>
+      <li>2</li>
+      <li>3</li>
+    </ul>
+    <h3>{{msg}}</h3>
+    <div v-text="msg"></div>
+    <div v-text="person.name"></div>
+    <div v-html="htmlStr"></div>
+    <input type="text" v-model="msg">
+    <img v-bind:src="imgSrc">
+    <img :src="imgSrc">
+    <button v-on:click="handleClick1">按钮1</button>
+    <button @click="handleClick1">按钮2</button>
+  </div>
+  <script src="./observer.js"></script>
+  <script src="./compile.js"></script>
+  <script src="./myVue.js"></script>
+  <script>
+    var vm = new MyVue({
+      el: '#app',
+      data: {
+        person: {
+          name: '小马哥', age: 18, fav: '姑娘'
+        },
+        msg: '学习MVM实现原理',
+        htmlStr: '<span style="color: red;">我是html</span>',
+        imgSrc: 'https://camo.githubusercontent.com/5349b1ec8f7f53b5a3bf322fb4cc7e68d0f8b465/68747470733a2f2f692e6c6f6c692e6e65742f323032302f30322f32302f67525a6144426b6a596831706e75362e706e67'
+      },
+      methods: {
+        handleClick1() {
+          console.log(this)
+        }
+      }
+    })
+  </script>
+</body>
+</html>
