@@ -8,12 +8,9 @@ class Watcher {
   }
   // 初始化的时候就要获取old值
   getOldVal () {
-    // 4. 把watcher挂载到Dep上
-    Dep.target = this
-    // 5. 刚渲染页面时获取的oldVal, 并把watcher push到依赖集合中
-    const oldVal = compileUtil.getVal(this.expr, this.vm)
-    // 7. 因为watcher已经push到依赖集合中，防止get时又push一遍，所以就要删除
-    Dep.target = null
+    Dep.target = this // 把watcher挂载到Dep上
+    const oldVal = compileUtil.getVal(this.expr, this.vm) // 刚渲染页面时获取的oldVal, 并把watcher push到依赖集合中
+    Dep.target = null // 因为watcher已经push到依赖集合中，防止get时又push一遍，所以就要删除
     return oldVal
   }
   update () {

@@ -92,12 +92,23 @@ const compileUtil = {
       return this.getVal(args[1], vm)
     })
   },
+  setVal (expr, vm, inputVal) {
+    const length = expr.split('.').length
+    let i = 0
+    return expr.split('.').reduce((data, currentVal) => {
+      i++
+      if (length > i) {
+        return data[currentVal]
+      } else {
+        data[currentVal] = inputVal
+      }
+    }, vm.$data)
+  },
   text(node, expr, vm) {
     let value = ''
     if (/\{\{.+?\}\}/g.test(expr)) { // {{person.name}}-{{person.age}}
       value = expr.replace(/\{\{(.+?)\}\}/g, (...arg) => {
         // console.log('去掉双括号获取的expr: ', arg[1])
-        // 3-2. 绑定更新函数，数据驱动视图
         new Watcher(vm, arg[1], () => {
           this.updater.textUpdater(node, this.getContentVal(expr, vm))
         })
@@ -106,23 +117,29 @@ const compileUtil = {
       // console.log('文本节点编译：', value)
     } else {
       value = this.getVal(expr, vm) // 获取属性对应vue里真正的值，expr是表达式：person.fav
+      new Watcher(vm, expr, (newVal) => {
+        this.updater.textUpdater(node, newVal)
+      })
     }
     this.updater.textUpdater(node, value) // 将真正的值绑定到属性里
   },
   html(node, expr, vm) {
-    // 2. 渲染页面获取oldVal,此时没有Dep.target，所以不会watcher.push
-    const value = this.getVal(expr, vm)
-    // 3. 初始化watcher，把更新视图的callback传入
-    new Watcher(vm, expr, (newVal) => {
+    const value = this.getVal(expr, vm) // 渲染页面获取oldVal,此时没有Dep.target，所以不会watcher.push
+    new Watcher(vm, expr, (newVal) => { // 初始化watcher，把更新视图的callback传入
       this.updater.htmlUpdater(node, newVal)
     })
     this.updater.htmlUpdater(node, value)
   },
   model(node, expr, vm) {
     const value = this.getVal(expr, vm)
-    // 3-1. 绑定更新函数，数据驱动视图
+    // 绑定更新函数，数据驱动视图
     new Watcher(vm, expr, (newVal) => {
       this.updater.modelUpdater(node, newVal)
+    })
+    // 1. 视图驱动数据再驱动视图
+    node.addEventListener('input', e => {
+      // 设置值
+      this.setVal(expr, vm, e.target.value)
     })
     this.updater.modelUpdater(node, value)
   },
