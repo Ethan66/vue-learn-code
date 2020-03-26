@@ -187,3 +187,98 @@ var event = function () {
 │    └─shared            # 项目公用的工具代码
 │    │  ├─constants      # 常量
 ```
+
+### Vue2.6.10源码剖析之整体流程
+来源：开课吧 -- 百度网盘视频
+
+#### P1 vue源码调试环境搭建
+dist打包文件输出格式：
+1. cjs(common.js): webpack1, browserfiry。node环境和低版本打包器
+2. esm(esm.js): webpack2+。为现代打包器准备的。也可以在开发环境。
+3. umd(没有common和esm): 兼容cjs和amd。可以在node和浏览器运行。
+4. runtime.js: 仅包含运行时，没有编辑器，已经提前打包了。
+
+调试源码: clone 整个项目（vue 2.6.10）, 目录不能有中文，会报错。 npm i安装node_modules。
+[参考教程](https://juejin.im/post/5c21fd4b518825566d2386e7)
+```
+// 通过sourcemap找到源代码
+// 第一种方法：全局搜genConfig函数,添加上sourceMap:true
+ const config = {
+    input: opts.entry,
+    sourceMap: true,
+    ...
+  }
+
+// 第二种方法：package.json中的scripts
+"dev": "rollup -w -c scripts/config.js --sourcemap --environment TARGET:web-full-dev",
+
+# npm run dev // 因为我们要本地运行找到源代码，所以不能直接打包
+// 打开html文件：examples/commits/index.html,修改其中script[src]对vue的引用，修改其文件名为：vue.min.js->vue.js
+```
+
+#### P2 入口文件
+```
+// package.json中的scripts
+"dev": "rollup -w -c scripts/config.js --sourcemap --environment TARGET:web-full-dev",
+// 找到scripts/config.js中的build对象的web-full-dev属性，value值就是对应的打包内容。入口文件：web/entry-runtime-with-compiler.js
+```
+
+#### P3 Vue初始化流程
+```
+1. web/entry-runtime-with-compiler.js
+扩展了$mount方法：处理了template和el选项，将el和template全都转为render函数。去找引入的vue文件
+
+2. src\platforms\web\runtime\index.js
+定义了$mount方法，执行挂载mountComponent(this, el, hydrating)。实现了patch方法。去找引入的vue文件
+
+3. src\core\index.js
+定义全局API：initGlobalAPI(Vue)。去找引入的Vue文件
+
+4. src\core\instance\index.js
+执行初始化操作：this._init(options)
+initMixin(Vue)
+stateMixin(Vue)
+eventsMixin(Vue)
+lifecycleMixin(Vue)
+renderMixin(Vue)。执行了5个方法。去找初始化函数的实现
+
+5. src\core\instance\init.js
+initLifecycle(vm) // 生命周期的初始化: $parent,$children,$root,$refs
+initEvents(vm) // 事件的初始化：把父组件传递的事件挂载到实例中
+initRender(vm) // 额外渲染的初始化：$slot, $scopedSlots和render函数
+callHook(vm, 'beforeCreate') // 调了beforeCreate的钩子
+initInjections(vm) // 获取注入数据
+initState(vm) // 初始化组建中的props/methods/data/computed/watch
+initProvide(vm) // 提供数据(给后代)
+callHook(vm, 'created')
+
+if (vm.$options.el) {
+  vm.$mount(vm.$options.el)
+}
+
+6. src\core\instance\state.js
+定义了$data,$props,$set,$delete,$watch
+
+7. src\core\instance\events.js
+定义了$on,$emit,$once,$off
+
+8. src\core\instance\lifecycle.js
+定义了_update,$forceUpdate,$destroy
+
+9. src\core\instance\render.js
+定义了$nextTick,render
+```
+
+#### P5 数据响应化流程分析
+```
+src\core\instance\state.js
+if (opts.data) {
+    initData(vm)
+  }
+initData(vm): 调用observe()，去找observe方法
+
+defineReactive(): 给data中每一个key定义数据劫持
+
+src\core\observer\dep.js
+维护和管理watch()
+```
