@@ -34,6 +34,39 @@ vue是采用数据劫持配合发布者-订阅者模式的方式，通过Object.
 
 >详细：new MVVM作为绑定的入口，整合Observer，Compile和Watcher三者，通过Observer来监听model数据变化，通过Compile来解析编译模板指令，最终利用Watcher搭起Observer,Compile之间的通信桥梁，达到数据变化到视图更新，视图交互变化到数据model变化的双向绑定效果。
 
+### Vue2.5.16源码分析
+vue.js来自https://github.com/qq281113270/vue，存在问题：没有目录，不方便查看。根据神仙朱的https://cloud.tencent.com/developer/column/79378/tag-10197的结构进行优化。
+
+#### watch
+[白话文](https://cloud.tencent.com/developer/article/1479092)
+问题：1、监听的数据改变的时，watch如何工作。2、设置immediate时，watch如何工作。3、设置了deep时，watch如何工作。
+
+##### 监听的数据改变的时，watch如何工作
+watch在一开始初始化的时候，会对每一个watch创建一个watcher实例。创建watcher实例时会读取一遍监听的数据的值，于是，此时那个数据就收集到watch的watcher了。然后你给watch设置的handler，watch会放入watcher的更新函数中。当数据改变时，通知watch的watcher进行更新，于是你设置的handler就被调用了。
+
+##### 设置 immediate时，watch如何工作
+当你设置了immediate时，就不需要在数据改变的时候才会触发。而是在初始化watch时，在读取了监听的数据的值之后，便立即调用一遍你设置的监听回调，然后传入刚读取的值
+
+##### 设置了deep时，watch如何工作
+我们都知道watch有一个deep选项，是用来深度监听的。什么是深度监听呢？就是当你监听的属性的值是一个对象的时候，如果你没有设置深度监听，当对象内部变化时，你监听的回调是不会被触发的。比如我们用Object.defineProperty()设置了对象中的每一个属性，但是属性改变的时候只能触发属性的set值，不能触发对象的set值。所以设置deep后，会递归遍历这个值，把内部所有属性逐个读取一遍，于是属性和它的对象值内每一个属性都会收集到watch的watcher
+
+[源码版](https://cloud.tencent.com/developer/article/1479300)
+初始化Vue实例的时候，在beforeCreate和created之间，会执行initState()函数，这个函数包含处理data，watch, props，computed等数据。先对$options.data进行数据响应式。再处理$options.watch，遍历每一个属性，每个watch都可能配置3种方式：name(){}, name: { handler(){} }, name: 'getName'，先获取响应的回调函数，将key和callback传入vm.$watch中执行，为每一个属性创建一个Watcher实例，将key和callback存入实例中，执行vm.get()，根据key获取data中的值，触发了get函数，此时data中的数据就收集了实例，当data变化的时候，就会触发set函数，回调函数就会被触发。所有的Watcher实例存储到vm._watcher数组中。watcher实例创建中假如有deep===true，直接遍历data对象中的每一个属性，这样就完成了依赖收集。immediate是在watcher实例创建完成后，判断是否有immediate，有的话就去执行callback函数。
+
+#### computed
+[白话文](https://cloud.tencent.com/developer/article/1479094)
+[源码版](https://cloud.tencent.com/developer/article/1479111)
+
+##### 初始化
+初始化Vue实例时，在beforeCreate和created之间，会执行initState()函数，这个函数包含处理data，watch, props，computed等数据。处理$options.computed，遍历每一个属性，对每个属性进行Watcher实例化，把get方法和{lazy: true}传入。get函数作为watcher实例的cb和getter, watcher.dirty=lazy，脏值属性，true表示缓存watcher.value脏了，得重新缓存，初始化的时候不执行get()函数，此时watcher.value为undefined，用于存储计算结果。所有watch实例存入vm._computedWatchers和vm._watchers中。然后再遍历computed属性，将属性绑定到vm上，并设置为数据监听。将computed的set(),新get()绑定上去。当获取computed的值时，就执行新get()，判断watcher.dirty是否为true, 执行watcher.getter(), 保存到watcher.value中，把watcher.dirty改为false。
+
+##### computed里的data数据B改变
+当B改变时，会通知所有的依赖，即watcher.update()被触发，update判断是否存在watcher.lazy，将watcher.dirty= true。当再次读取computed里的数据时，就会触发新get()，进行更新。
+
+##### 页面P引用了computed数据C，C引用了data数据D，D修改，变化顺序是怎么样的
+其实D会同时收集C和P的watcher，当D修改后，会遍历顺序通知wather，先通知C的watcher，将this.dirty = true，此时还没有执行C的wather.getter(),值还没有更新。所以再去通知P的watcher，P的watcher执行后，重新渲染页面，需要重新获取C的值，此时因为C.watcher.dirty===true, 所以不会拿缓存值，调用C.watcher.getter()
+重复计算。
+
 ### Vue3源码
 Vue3源码分析。来自bilibili————YanToT————Vue源码分析
 

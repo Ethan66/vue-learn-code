@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="./vue.js"></script>
+</head>
+<body>
+  <div id="app">
+    <button onclick="onGetName()">获取computedName</button>
+    <button onclick="onChangeName()">改变a属性</button>
+  </div>
+  <script>
+    var vm = new Vue({
+      el: '#app',
+      data () {
+        return {
+          a: 1
+        }
+      },
+      computed: {
+        computedName: {
+          get () {
+            return this.a
+          },
+          set (val) {
+            console.log('computedName: ', val)
+          }
+        }
+      }
+    })
+  </script>
+  <script>
+    function onGetName() {
+      console.log(vm.computedName)
+    }
+    function onChangeName() {
+      vm.a = '22'
+    }
+  </script>
+</body>
+</html>
