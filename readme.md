@@ -67,6 +67,21 @@ watch在一开始初始化的时候，会对每一个watch创建一个watcher实
 其实D会同时收集C和P的watcher，当D修改后，会遍历顺序通知wather，先通知C的watcher，将this.dirty = true，此时还没有执行C的wather.getter(),值还没有更新。所以再去通知P的watcher，P的watcher执行后，重新渲染页面，需要重新获取C的值，此时因为C.watcher.dirty===true, 所以不会拿缓存值，调用C.watcher.getter()
 重复计算。
 
+#### NextTick
+[白话文](https://cloud.tencent.com/developer/article/1479325)
+[源码版](https://cloud.tencent.com/developer/article/1479324)
+[源码版](https://cloud.tencent.com/developer/article/1479319) // 可忽略
+[源码版](https://cloud.tencent.com/developer/article/1479317)
+
+##### 白话版
+Vue的nextTick不止使用了setTimeout，还涉及了js的宏微任务：两个setTimeout就是两个宏任务，两个Promise就是两个微任务，执行完一个宏任务，就执行一个微任务，这样就完成一个Event Loop。循环执行Event Loop。Vue2.6之前是使用宏微任务，之后都使用微任务。比如一个数据D被页面P引用了，D就会收集P的watcher，假如数据被连续修改3次，页面只更新了一次。原因：当数据变化，把watcher.update存入nextTick的回调数组中，通过watcher.id来判断回调数组是否存在，不存在才push。所以连续修改3次只有一次push成功，所以页面才会更新一次。
+
+##### 源码版
+页面P引用了数据D1，D2，修改了数据D1，就会触发P的watcher.update，把watcher.id存入has数组中，把P的watcher存入queue（queue可能还有watch里的watcher）数组中，然后调用nextTick(flushSchedulerQueue)，将flushSchedulerQueue存入callbacks（callbacks里还有开发者的nextTick里的callback）数组中，判断pending是否为false，为false执行new Promise()，因为Promise为宏任务，把pending改为true。此时假如修改了D2，触发P的watcher.update，此时has已经有P的watcher.id，就跳过了。最后执行Promise.then()，then为微任务，然后遍历callbacks数组，执行callback函数，遍历queue数组，先升序queue，将id大的往后排（id大的表示后生成），执行wather.run()函数，把has数组和callback数组清空，pending改为flase
+
+##### NextTick的宏微任务的抉择
+本来Vue都是用微任务的，因为微任务的优先级比较高，执行比较快。Vue2.6之前是宏微任务，怎么考虑：考虑到冒泡事件，body下的div父元素和p子元素，2个元素点击事件里都有log('div')，new Promise().then(log('promise'))，结果打印的是div, promise, div, promise，我们的预期应该是宏任务走完了才走微任务，但是现在不是，假如在2个事件回调中修改了数据D，就会执行2次微任务，也就更新了2次。所以尤大大想到了在事件回调执行的时候，注册是宏任务setImmediate（表示浏览器执行完后面的其他语句后，马上执行），不是微任务，这样执行的顺序是div, div, promise, promise。
+
 ### Vue3源码
 Vue3源码分析。来自bilibili————YanToT————Vue源码分析
 

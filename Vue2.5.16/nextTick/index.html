@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="./vue.js"></script>
+</head>
+<body>
+  <div id="app">
+    {{ a }}
+    <button onclick="onChangeData()">触发NextTick</button>
+  </div>
+  <script>
+    var vm = new Vue({
+      el: '#app',
+      data () {
+        return {
+          a: 1,
+          b: 2
+        }
+      },
+      watch: {
+        b (val) {
+          val = 3
+        }
+      }
+    })
+  </script>
+  <script>
+    function onChangeData() {
+      vm.a = 2
+      vm.a = 3
+      vm.b = 6
+    }
+  </script>
+</body>
+</html>
