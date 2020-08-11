@@ -82,6 +82,19 @@ Vue的nextTick不止使用了setTimeout，还涉及了js的宏微任务：两个
 ##### NextTick的宏微任务的抉择
 本来Vue都是用微任务的，因为微任务的优先级比较高，执行比较快。Vue2.6之前是宏微任务，怎么考虑：考虑到冒泡事件，body下的div父元素和p子元素，2个元素点击事件里都有log('div')，new Promise().then(log('promise'))，结果打印的是div, promise, div, promise，我们的预期应该是宏任务走完了才走微任务，但是现在不是，假如在2个事件回调中修改了数据D，就会执行2次微任务，也就更新了2次。所以尤大大想到了在事件回调执行的时候，注册是宏任务setImmediate（表示浏览器执行完后面的其他语句后，马上执行），不是微任务，这样执行的顺序是div, div, promise, promise。
 
+### vue从创建到挂载的过程
+[参考](https://nlrx-wjc.github.io/Learn-Vue-Source-Code/lifecycle/newVue.html#_1-%E5%89%8D%E8%A8%80)
+ 初始化Vue实例时，执行vue._init()方法，调用mergeOptions()方法，校验配置的options的规范（components命令，props是否是对象数组等），如果配置项里有mixins，递归调用mergeOptions方法，把mixins的配置项匹配给parent，再遍历配置的options，把每项与父级构造函数的options属性进行合并（如果childVal不存在，就返回parentVal,如果存在，就把childVal添加到parentVal后，比如生命钩子，所以mixins里的生命周期早于当前实例执行），将得到一个新的options选项赋值给$options属性。再执行beforeCreate钩子，此时还没有$el和$data。
+
+接着调用initState()方法，处理$options里每个属性，先处理props，再给data实现数据劫持，最后给watch，computed添加观察者。再执行created钩子。
+再判断$options.el是否存在，执行vue.$mount()方法。
+
+vue有2个版本的代码：runtime only（只包含运行时版本）和runtime+compiler（同时包含编译器和运行时的完整代码）。他们的区别就是编译器，将template转化为render函数，用runtime only做实际开发，同时借助webpack的vue-loader，通过这工具来将模板编译成render函数。
+
+所以两个版本区别在于：vue.$mount()方法是否将Vue原型的$mount方法缓存起来，直接执行$mount的就是runtime only版本，否则就是完整版本。完整版先根据传入的el获取dom元素，判断有无配置render函数，没有的话判断配置是否有template模板，是字符串且是id的，或者是dom的直接获取innerHtml，没有配置template就是el作为innerHtml。将模板字符串编译成render函数。传给$options.render，再执行原始vm.$mount()函数。
+
+开始挂载，执行beforeCreate()钩子，实例化watcher观察者，将定义的updateComponent方法传给实例，运行updateComponent方法，先执行vm._render()方法获取最新的节点，再执行vm._update()比较最新和就的节点（即patch），完成渲染。这时候就会读取数据，调用get方法就把实例化的watcher存入数据的依赖收集中，修改数据，就会触发watcher.update，然后触发updateComponent方法，再进行新旧节点对比，完成渲染。
+
 ### Vue3源码
 Vue3源码分析。来自bilibili————YanToT————Vue源码分析
 
