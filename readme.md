@@ -82,17 +82,92 @@ Vue的nextTick不止使用了setTimeout，还涉及了js的宏微任务：两个
 ##### NextTick的宏微任务的抉择
 本来Vue都是用微任务的，因为微任务的优先级比较高，执行比较快。Vue2.6之前是宏微任务，怎么考虑：考虑到冒泡事件，body下的div父元素和p子元素，2个元素点击事件里都有log('div')，new Promise().then(log('promise'))，结果打印的是div, promise, div, promise，我们的预期应该是宏任务走完了才走微任务，但是现在不是，假如在2个事件回调中修改了数据D，就会执行2次微任务，也就更新了2次。所以尤大大想到了在事件回调执行的时候，注册是宏任务setImmediate（表示浏览器执行完后面的其他语句后，马上执行），不是微任务，这样执行的顺序是div, div, promise, promise。
 
-### vue从创建到挂载的过程
+#### Mixins
+[白话版](https://cloud.tencent.com/developer/article/1479108) // 面试的话没问题
+[源码版](https://cloud.tencent.com/developer/article/1479221) // 不需要断点，这里很清晰
+
+##### 什么时候合并
+vue实例化之前，全局设置了Vue.options的三个属性，components（全局组件），directives（全局指令），filters（全局过滤器）。vue实例化时候，在beforeCreate之前，调用mergeOptions方法，传入Vue.options和配置的options进行合并。
+
+##### 怎么合并
+mergeOptions函数会判断配置的options里有没有mixins属性，有的话先递归mergeOptions方法，将mixins里的配置options先合parent（Vue.options）合并，之后再遍历parent和child（当前组件的options）,进行合并。
+
+##### data()合并和生命钩子
+执行data()方法得到对象合并，相同属性的value是基本类型，用当前组件的数据，引用类型递归合并对象。
+
+##### 生命钩子和watch
+生命钩子和watch都是保存到数组，先执行全局mixins和钩子，再执行组件mixins的钩子，最后执行当前组件的钩子。
+
+##### components, direactives, filters合并
+并没有进行遍历合并，而是存在对象的原型上。obj.self_filter: 当前组件的filter，obj.__ptoto__.mixins_filter: 组件mixins的filter，obj.__proto__.__proto__.global_filter: 全局filter
+
+##### props, computed, methods
+唯一性。权重谁大用谁的，当前组件>mixins>全局
+
+#### props
+[白话版](https://cloud.tencent.com/developer/article/1479097) // 比源码清楚
+[源码版](https://cloud.tencent.com/developer/article/1479303) // 子组件如何更新讲的好
+##### 初始化实例
+```
+// 父组件
+<div id="#app">
+  <child :child-name="parentName" />
+</div>
+
+// js
+new Vue({    
+  el:"#app",        
+  components:{        
+    child:{            
+      props:{                
+          childName:""
+      },            
+    template: '<p>父组件传入的 props 的值 {{childName}}</p>'
+    }
+  },
+  data(){        
+    return {            
+      parentName:"我是父组件"
+    }
+  },
+})
+```
+
+##### 父组件如何传值给子组件
+```
+// 父组件的模板会被解析成一个模板渲染函数，_c是渲染组件的函数，width的作用是将大括号内所有的变量都带上this，此时的this为父组件
+(function() {    
+  with(this){
+    return _c('div',{staticId:"app"},[
+      _c('child',{attrs:{"child-name":parentName}})
+    ],1)
+  }
+})
+```
+当父组件开始渲染的时候，模板字符串会变成模板渲染函数，执行模板渲染函数的时候，里面所有变量都是从父组件获取，此时父组件就把值传给子组件：_c('child',{attrs:{"child-name":'我是父组件'}})，渲染子组件的时候attrs里吧props里筛选出来，保存到child._props里，对child._props里进行数据劫持，子页面使用了_props就进行收集watcher，child._props改变就进行重新渲染子页面。和父组件唯一的不同是，child._props不会对对象所有属性进行数据劫持。因为父组件已经对该数据进行了数据劫持，减少重复工作。最后对子组件的props进行数据代理，取和设置都拿child._props的值。
+
+##### 父组件data更新，子组件的props如何更新
+第一次渲染的时候，页面获取了parentName的值，parentName就收集了页面的watcher，修改了父组件的parentName，就会调用页面的watcher.update，重新执行模板渲染函数，子组件就获取最新的值。假如传入的是基本类型，子组件改变不会影响父组件；假如传入的是对象，子组件改变会影响父组件，因为是同一个地址。
+
+##### 子组件如何更新
+props是基本类型时，因为子组件对child._props做了数据劫持，所以子组件内部props通知子组件更新的。但是props对象没有对所有属性进行数据拦截，那父组件修改props对象的属性时，怎么通知子组件重新渲染？答：父组件传对象给子组件，并且父子组件都使用了这个数据，这个对象会收集父子组件的watcher，所以父组件的数据属性修改时，父组件的数据data通知子组件更新的。
+
+#### vue从创建到挂载的过程
 [参考](https://nlrx-wjc.github.io/Learn-Vue-Source-Code/lifecycle/newVue.html#_1-%E5%89%8D%E8%A8%80)
+
+##### beforeCreate之前
  初始化Vue实例时，执行vue._init()方法，调用mergeOptions()方法，校验配置的options的规范（components命令，props是否是对象数组等），如果配置项里有mixins，递归调用mergeOptions方法，把mixins的配置项匹配给parent，再遍历配置的options，把每项与父级构造函数的options属性进行合并（如果childVal不存在，就返回parentVal,如果存在，就把childVal添加到parentVal后，比如生命钩子，所以mixins里的生命周期早于当前实例执行），将得到一个新的options选项赋值给$options属性。再执行beforeCreate钩子，此时还没有$el和$data。
 
+##### created之前
 接着调用initState()方法，处理$options里每个属性，先处理props，再给data实现数据劫持，最后给watch，computed添加观察者。再执行created钩子。
 再判断$options.el是否存在，执行vue.$mount()方法。
 
+##### beforeCreate之前
 vue有2个版本的代码：runtime only（只包含运行时版本）和runtime+compiler（同时包含编译器和运行时的完整代码）。他们的区别就是编译器，将template转化为render函数，用runtime only做实际开发，同时借助webpack的vue-loader，通过这工具来将模板编译成render函数。
 
 所以两个版本区别在于：vue.$mount()方法是否将Vue原型的$mount方法缓存起来，直接执行$mount的就是runtime only版本，否则就是完整版本。完整版先根据传入的el获取dom元素，判断有无配置render函数，没有的话判断配置是否有template模板，是字符串且是id的，或者是dom的直接获取innerHtml，没有配置template就是el作为innerHtml。将模板字符串编译成render函数。传给$options.render，再执行原始vm.$mount()函数。
 
+##### mounted之前
 开始挂载，执行beforeCreate()钩子，实例化watcher观察者，将定义的updateComponent方法传给实例，运行updateComponent方法，先执行vm._render()方法获取最新的节点，再执行vm._update()比较最新和就的节点（即patch），完成渲染。这时候就会读取数据，调用get方法就把实例化的watcher存入数据的依赖收集中，修改数据，就会触发watcher.update，然后触发updateComponent方法，再进行新旧节点对比，完成渲染。
 
 ### Vue3源码
