@@ -37,6 +37,20 @@ vue是采用数据劫持配合发布者-订阅者模式的方式，通过Object.
 ### Vue2.5.16源码分析
 vue.js来自https://github.com/qq281113270/vue，存在问题：没有目录，不方便查看。根据神仙朱的https://cloud.tencent.com/developer/column/79378/tag-10197的结构进行优化。
 
+#### 依赖收集
+[基本数据类型](https://cloud.tencent.com/developer/article/1479270)
+[引用类型](https://cloud.tencent.com/developer/article/1479267)
+[依赖更新](https://cloud.tencent.com/developer/article/1479254)
+
+##### 数据初始化
+vue初始化，先执行vm._init()方法，执行mergeOptions()方法，生成新的data()函数。然后执行initData()方法，执行新的data（将mixins和当前组件的data函数执行再合并）,返回的对象存入vm._data中，再执行proxy()将vm._data进行代理，可以直接用vm.data访问。再执行observe()对数据进行响应式。创建Observer实例，将observer实例赋值给对象的__ob__属性，证明这个对象是已经做了响应式的。再判断对象是数组还是对象，对象的话遍历属性，执行defineReactive()，并对每个属性创建Dep实例，递归设置get，set，假如value还是对象，递归执行observe()。Dep实例赋值给observe实例的dep属性。对象数组有__ob__属性，基本类型没有。
+
+##### 依赖如何收集
+页面P使用的数据D，渲染P的时候先将模板字符串转为render函数，执行render函数的时候获取D，执行Object.defineProperty.get方法，此时的Dep.target指向P的watcher,此时数据D就收集Dep.target，执行Dep.addSub函数，将watcher存到dep实例的subs数组里。
+
+##### 如果页面只使用了数据D，为什么修改D里对象的属性时，也会更新页面
+触发数据Dget的get时，假如数据D有子对象，就会把Dep.target push给对象的__ob__.dep.subs和子对象的__ob__.dep.subs数组中。所以不管修改D的属性，还是D子对象的属性，都会调用dep.notify()，遍历subs里的watcher，执行watcher.update, watcher.update执行的是watcher.getter方法，更新页面。Vue.$set(target, key, value), Vue.$delete也是执行target.__ob__.dep.notify()
+
 #### watch
 [白话文](https://cloud.tencent.com/developer/article/1479092)
 问题：1、监听的数据改变的时，watch如何工作。2、设置immediate时，watch如何工作。3、设置了deep时，watch如何工作。
