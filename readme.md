@@ -171,19 +171,37 @@ props是基本类型时，因为子组件对child._props做了数据劫持，所
 
 ##### beforeCreate之前
  初始化Vue实例时，执行vue._init()方法，调用mergeOptions()方法，校验配置的options的规范（components命令，props是否是对象数组等），如果配置项里有mixins，递归调用mergeOptions方法，把mixins的配置项匹配给parent，再遍历配置的options，把每项与父级构造函数的options属性进行合并（如果childVal不存在，就返回parentVal,如果存在，就把childVal添加到parentVal后，比如生命钩子，所以mixins里的生命周期早于当前实例执行），将得到一个新的options选项赋值给$options属性。再执行beforeCreate钩子，此时还没有$el和$data。
+ 所以beforeCreate之前是将options配置项检验合并。
 
 ##### created之前
-接着调用initState()方法，处理$options里每个属性，先处理props，再给data实现数据劫持，最后给watch，computed添加观察者。再执行created钩子。
+接着调用initState()方法，处理$options里每个属性，先处理props，再给data实现数据响应，最后给watch，computed添加观察者。再执行created钩子。
 再判断$options.el是否存在，执行vue.$mount()方法。
 
 ##### beforeCreate之前
 vue有2个版本的代码：runtime only（只包含运行时版本）和runtime+compiler（同时包含编译器和运行时的完整代码）。他们的区别就是编译器，将template转化为render函数，用runtime only做实际开发，同时借助webpack的vue-loader，通过这工具来将模板编译成render函数。
 
-所以两个版本区别在于：vue.$mount()方法是否将Vue原型的$mount方法缓存起来，直接执行$mount的就是runtime only版本，否则就是完整版本。完整版先根据传入的el获取dom元素，判断有无配置render函数，没有的话判断配置是否有template模板，是字符串且是id的，或者是dom的直接获取innerHtml，没有配置template就是el作为innerHtml。将模板字符串编译成render函数。传给$options.render，再执行原始vm.$mount()函数。
+所以两个版本区别在于：vue.$mount()方法是否将Vue原型的$mount方法缓存起来，直接执行$mount的就是runtime only版本，否则就是完整版本。完整版先根据传入的el获取dom元素，判断有无配置render函数，没有的话判断配置是否有template模板，是字符串，或者是dom的直接获取innerHtml，没有配置template就是el作为innerHtml。将模板字符串编译成render函数。传给$options.render，再执行原始vm.$mount()函数。
 
 ##### mounted之前
-开始挂载，执行beforeCreate()钩子，实例化watcher观察者，将定义的updateComponent方法传给实例，运行updateComponent方法，先执行vm._render()方法获取最新的节点，再执行vm._update()比较最新和就的节点（即patch），完成渲染。这时候就会读取数据，调用get方法就把实例化的watcher存入数据的依赖收集中，修改数据，就会触发watcher.update，然后触发updateComponent方法，再进行新旧节点对比，完成渲染。
+开始挂载，执行beforeCreate()钩子，实例化watcher观察者，将定义的updateComponent方法传给实例，运行updateComponent方法，先执行vm._render()方法获取最新的节点，再执行vm._update()比较最新和旧的节点（即patch），完成渲染。这时候就会读取数据，调用get方法就把实例化的watcher存入数据的依赖收集中，修改数据，就会触发watcher.update，然后触发updateComponent方法，再进行新旧节点对比，完成渲染。
 
+#### Compile
+[白话版](https://mp.weixin.qq.com/s?__biz=MzUxNjQ1NjMwNw==&mid=2247484386&idx=1&sn=b901d961488a6f52e9a14756c34d445d&chksm=f9a669feced1e0e8197c5f3c30410eef79deb3d3ab9a2352c0813ef6b5f1f8800f79f92769d7&scene=21#wechat_redirect) // 为主
+[parese](https://cloud.tencent.com/developer/article/1479312) // 看总结的上面一段
+[optimize](https://cloud.tencent.com/developer/article/1479404) // 好累，不用看
+[generate](https://cloud.tencent.com/developer/article/1479388) // 好累，不用看
+
+##### 开头
+compile是vue.prototype.$mount执行的，判断$options里的template，传入template调用compileToFunctions方法生成render函数。compileToFunctions有个baseCompile函数，baseCompile包含了parse函数, optimize函数, generate函数。
+
+##### parse
+将template生成ast（抽象语法树）：while遍历template字符串，匹配到头标签，就交给parseStartTag函数处理，转换为抽象语法树{ tag: 'div', attrs: [{class: 'name1'}] }，将抽象语法树push到stack数组里，stack最后一项表示当前正在解析的ast，这样就能明确父子关系，比如div里的p标签，stack保存的就是[div, p]，p标签解析完成，它的父亲就是div，所以把p放入div的children里，截取template字符串，此时template长度不为0，继续匹配。匹配到不是<，表示是文本，传给chars方法处理，截取tempalte，继续匹配。匹配到尾标签，将stack末尾pop()一个，表示当前元素已经解析完成。
+
+##### optimize
+将template全部转为ast节点，遍历每一个ast节点，把静态的节点标记上staticRoot: true，这样以后更新的时候，只要碰到staticRoot===true，就表示他的所有子孙都是静态节点。怎么判断是否是静态节点：不能存在指令，不能存在if, for，不能存在slot和component，是html的标签等。
+
+##### generate
+将前两部生成的ast转为render字符串，遍历ast，得到render字符串`_c('div', [  _c('span', [  _v(b) ] , _v(a) )]`，再转为render函数，render = new Function(render)，保存到vm.$options.render上，_c , _v都是创建VNode的函数
 ### Vue3源码
 Vue3源码分析。来自bilibili————YanToT————Vue源码分析
 
