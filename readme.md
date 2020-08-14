@@ -65,7 +65,7 @@ watch在一开始初始化的时候，会对每一个watch创建一个watcher实
 我们都知道watch有一个deep选项，是用来深度监听的。什么是深度监听呢？就是当你监听的属性的值是一个对象的时候，如果你没有设置深度监听，当对象内部变化时，你监听的回调是不会被触发的。比如我们用Object.defineProperty()设置了对象中的每一个属性，但是属性改变的时候只能触发属性的set值，不能触发对象的set值。所以设置deep后，会递归遍历这个值，把内部所有属性逐个读取一遍，于是属性和它的对象值内每一个属性都会收集到watch的watcher
 
 [源码版](https://cloud.tencent.com/developer/article/1479300)
-初始化Vue实例的时候，在beforeCreate和created之间，会执行initState()函数，这个函数包含处理data，watch, props，computed等数据。先对$options.data进行数据响应式。再处理$options.watch，遍历每一个属性，每个watch都可能配置3种方式：name(){}, name: { handler(){} }, name: 'getName'，先获取响应的回调函数，将key和callback传入vm.$watch中执行，为每一个属性创建一个Watcher实例，将key和callback存入实例中，执行vm.get()，根据key获取data中的值，触发了get函数，此时data中的数据就收集了实例，当data变化的时候，就会触发set函数，回调函数就会被触发。所有的Watcher实例存储到vm._watcher数组中。watcher实例创建中假如有deep===true，直接遍历data对象中的每一个属性，这样就完成了依赖收集。immediate是在watcher实例创建完成后，判断是否有immediate，有的话就去执行callback函数。
+初始化Vue实例的时候，在beforeCreate和created之间，会执行initState()函数，这个函数包含处理data，watch, props，computed等数据。先对$options.data进行数据响应式。再处理$options.watch，遍历每一个属性，每个watch都可能配置3种方式：name(){}, name: { handler(){} }, name: 'getName'，先获取响应的回调函数callback，为每一个属性创建一个Watcher实例，将parsePath(key)传给watcher.getter，将callback传给watcher实例，执行watcher.getter()，根据key获取data中的值，触发了data数据get函数，此时data中的数据就收集了实例，当data变化的时候，就会触发set函数，回调函数就会被触发。所有的Watcher实例存储到vm._watcher数组中。watcher实例创建中假如有deep===true，在获取数据data的时候，再遍历data对象中的每一个属性key，获取响应的value，这样就完成了依赖收集。immediate是在watcher实例创建完成后，判断是否有immediate，有的话就去执行callback函数。
 
 #### computed
 [白话文](https://cloud.tencent.com/developer/article/1479094)
