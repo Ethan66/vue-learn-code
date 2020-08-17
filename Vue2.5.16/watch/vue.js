@@ -1515,7 +1515,7 @@
             enumerable: true,
             configurable: true,
             get: function reactiveGetter() {
-
+                debugger // Ethan: debugger
                 var value = getter ? getter.call(obj) : val;
                 if (Dep.target) {  //Dep.target 静态标志 标志了Dep添加了Watcher 实例化的对象
                     //添加一个dep
@@ -1530,6 +1530,7 @@
                 return value
             },
             set: function reactiveSetter(newVal) {
+                debugger // Ethan: debugger
                 var value = getter ? getter.call(obj) : val;
                 /* eslint-disable no-self-compare  新旧值比较 如果是一样则不执行了*/
                 if (newVal === value || (newVal !== newVal && value !== value)) {

@@ -75,7 +75,7 @@ watch在一开始初始化的时候，会对每一个watch创建一个watcher实
 初始化Vue实例时，在beforeCreate和created之间，会执行initState()函数，这个函数包含处理data，watch, props，computed等数据。处理$options.computed，遍历每一个属性，对每个属性进行Watcher实例化，把get方法和{lazy: true}传入。get函数作为watcher实例的cb和getter, watcher.dirty=lazy，脏值属性，true表示缓存watcher.value脏了，得重新缓存，初始化的时候不执行get()函数，此时watcher.value为undefined，用于存储计算结果。所有watch实例存入vm._computedWatchers和vm._watchers中。然后再遍历computed属性，将属性绑定到vm上，并设置为数据监听。将computed的set(),新get()绑定上去。当获取computed的值时，就执行新get()，判断watcher.dirty是否为true, 执行watcher.getter(), 保存到watcher.value中，把watcher.dirty改为false。
 
 ##### computed里的data数据B改变
-当B改变时，会通知所有的依赖，即watcher.update()被触发，update判断是否存在watcher.lazy，将watcher.dirty= true。当再次读取computed里的数据时，就会触发新get()，进行更新。
+当B改变时，会通知所有的依赖，即watcher.update()被触发，update将watcher.dirty= true。当再次读取computed里的数据时，就会触发新get()，进行更新。
 
 ##### 页面P引用了computed数据C，C引用了data数据D，D修改，变化顺序是怎么样的
 其实D会同时收集C和P的watcher，当D修改后，会遍历顺序通知wather，先通知C的watcher，将this.dirty = true，此时还没有执行C的wather.getter(),值还没有更新。所以再去通知P的watcher，P的watcher执行后，重新渲染页面，需要重新获取C的值，此时因为C.watcher.dirty===true, 所以不会拿缓存值，调用C.watcher.getter()
