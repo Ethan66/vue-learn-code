@@ -37,36 +37,6 @@ vue是采用数据劫持配合发布者-订阅者模式的方式，通过Object.
 ### Vue2.5.16源码分析
 vue.js来自https://github.com/qq281113270/vue，存在问题：没有目录，不方便查看。根据神仙朱的https://cloud.tencent.com/developer/column/79378/tag-10197的结构进行优化。
 
-#### 依赖收集
-[基本数据类型](https://cloud.tencent.com/developer/article/1479270)
-[引用类型](https://cloud.tencent.com/developer/article/1479267)
-[依赖更新](https://cloud.tencent.com/developer/article/1479254)
-
-##### 数据初始化
-vue初始化，先执行vm._init()方法，执行mergeOptions()方法，生成新的data()函数。然后执行initData()方法，执行新的data（将mixins和当前组件的data函数执行再合并）,返回的对象存入vm._data中，再执行proxy()将vm._data进行代理，可以直接用vm.data访问。再执行observe()对数据进行响应式。创建Observer实例，将observer实例赋值给对象的__ob__属性，证明这个对象是已经做了响应式的。再判断对象是数组还是对象，对象的话遍历属性，执行defineReactive()，并对每个属性创建Dep实例，递归设置get，set，假如value还是对象，递归执行observe()。Dep实例赋值给observe实例的dep属性。对象数组有__ob__属性，基本类型没有。
-
-##### 依赖如何收集
-页面P使用的数据D，渲染P的时候先将模板字符串转为render函数，执行render函数的时候获取D，执行Object.defineProperty.get方法，此时的Dep.target指向P的watcher,此时数据D就收集Dep.target，执行Dep.addSub函数，将watcher存到dep实例的subs数组里。
-
-##### 如果页面只使用了数据D，为什么修改D里对象的属性时，也会更新页面
-触发数据Dget的get时，假如数据D有子对象，就会把Dep.target push给对象的__ob__.dep.subs和子对象的__ob__.dep.subs数组中。所以不管修改D的属性，还是D子对象的属性，都会调用dep.notify()，遍历subs里的watcher，执行watcher.update, watcher.update执行的是watcher.getter方法，更新页面。Vue.$set(target, key, value), Vue.$delete也是执行target.__ob__.dep.notify()
-
-#### watch
-[白话文](https://cloud.tencent.com/developer/article/1479092)
-问题：1、监听的数据改变的时，watch如何工作。2、设置immediate时，watch如何工作。3、设置了deep时，watch如何工作。
-
-##### 监听的数据改变的时，watch如何工作
-watch在一开始初始化的时候，会对每一个watch创建一个watcher实例。创建watcher实例时会读取一遍监听的数据的值，于是，此时那个数据就收集到watch的watcher了。然后你给watch设置的handler，watch会放入watcher的更新函数中。当数据改变时，通知watch的watcher进行更新，于是你设置的handler就被调用了。
-
-##### 设置 immediate时，watch如何工作
-当你设置了immediate时，就不需要在数据改变的时候才会触发。而是在初始化watch时，在读取了监听的数据的值之后，便立即调用一遍你设置的监听回调，然后传入刚读取的值
-
-##### 设置了deep时，watch如何工作
-我们都知道watch有一个deep选项，是用来深度监听的。什么是深度监听呢？就是当你监听的属性的值是一个对象的时候，如果你没有设置深度监听，当对象内部变化时，你监听的回调是不会被触发的。比如我们用Object.defineProperty()设置了对象中的每一个属性，但是属性改变的时候只能触发属性的set值，不能触发对象的set值。所以设置deep后，会递归遍历这个值，把内部所有属性逐个读取一遍，于是属性和它的对象值内每一个属性都会收集到watch的watcher
-
-[源码版](https://cloud.tencent.com/developer/article/1479300)
-初始化Vue实例的时候，在beforeCreate和created之间，会执行initState()函数，这个函数包含处理data，watch, props，computed等数据。先对$options.data进行数据响应式。再处理$options.watch，遍历每一个属性，每个watch都可能配置3种方式：name(){}, name: { handler(){} }, name: 'getName'，先获取响应的回调函数callback，为每一个属性创建一个Watcher实例，将parsePath(key)传给watcher.getter，将callback传给watcher实例，执行watcher.getter()，根据key获取data中的值，触发了data数据get函数，此时data中的数据就收集了实例，当data变化的时候，就会触发set函数，回调函数就会被触发。所有的Watcher实例存储到vm._watcher数组中。watcher实例创建中假如有deep===true，在获取数据data的时候，再遍历data对象中的每一个属性key，获取响应的value，这样就完成了依赖收集。immediate是在watcher实例创建完成后，判断是否有immediate，有的话就去执行callback函数。
-
 #### computed
 [白话文](https://cloud.tencent.com/developer/article/1479094)
 [源码版](https://cloud.tencent.com/developer/article/1479111)
@@ -165,25 +135,6 @@ new Vue({
 
 ##### 子组件如何更新
 props是基本类型时，因为子组件对child._props做了数据劫持，所以子组件内部props通知子组件更新的。但是props对象没有对所有属性进行数据拦截，那父组件修改props对象的属性时，怎么通知子组件重新渲染？答：父组件传对象给子组件，并且父子组件都使用了这个数据，这个对象会收集父子组件的watcher，所以父组件的数据属性修改时，父组件的数据data通知子组件更新的。
-
-#### vue从创建到挂载的过程
-[参考](https://nlrx-wjc.github.io/Learn-Vue-Source-Code/lifecycle/newVue.html#_1-%E5%89%8D%E8%A8%80)
-
-##### beforeCreate之前
- 初始化Vue实例时，执行vue._init()方法，调用mergeOptions()方法，校验配置的options的规范（components命令，props是否是对象数组等），如果配置项里有mixins，递归调用mergeOptions方法，把mixins的配置项匹配给parent，再遍历配置的options，把每项与父级构造函数的options属性进行合并（如果childVal不存在，就返回parentVal,如果存在，就把childVal添加到parentVal后，比如生命钩子，所以mixins里的生命周期早于当前实例执行），将得到一个新的options选项赋值给$options属性。再执行beforeCreate钩子，此时还没有$el和$data。
- 所以beforeCreate之前是将options配置项检验合并。
-
-##### created之前
-接着调用initState()方法，处理$options里每个属性，先处理props，再给data实现数据响应，最后给watch，computed添加观察者。再执行created钩子。
-再判断$options.el是否存在，执行vue.$mount()方法。
-
-##### beforeCreate之前
-vue有2个版本的代码：runtime only（只包含运行时版本）和runtime+compiler（同时包含编译器和运行时的完整代码）。他们的区别就是编译器，将template转化为render函数，用runtime only做实际开发，同时借助webpack的vue-loader，通过这工具来将模板编译成render函数。
-
-所以两个版本区别在于：vue.$mount()方法是否将Vue原型的$mount方法缓存起来，直接执行$mount的就是runtime only版本，否则就是完整版本。完整版先根据传入的el获取dom元素，判断有无配置render函数，没有的话判断配置是否有template模板，是字符串，或者是dom的直接获取innerHtml，没有配置template就是el作为innerHtml。将模板字符串编译成render函数。传给$options.render，再执行原始vm.$mount()函数。
-
-##### mounted之前
-开始挂载，执行beforeCreate()钩子，实例化watcher观察者，将定义的updateComponent方法传给实例，运行updateComponent方法，先执行vm._render()方法获取最新的节点，再执行vm._update()比较最新和旧的节点（即patch），完成渲染。这时候就会读取数据，调用get方法就把实例化的watcher存入数据的依赖收集中，修改数据，就会触发watcher.update，然后触发updateComponent方法，再进行新旧节点对比，完成渲染。
 
 #### Compile
 [白话版](https://mp.weixin.qq.com/s?__biz=MzUxNjQ1NjMwNw==&mid=2247484386&idx=1&sn=b901d961488a6f52e9a14756c34d445d&chksm=f9a669feced1e0e8197c5f3c30410eef79deb3d3ab9a2352c0813ef6b5f1f8800f79f92769d7&scene=21#wechat_redirect) // 为主

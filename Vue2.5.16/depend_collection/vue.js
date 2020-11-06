@@ -1530,7 +1530,7 @@
                     //添加一个dep
                     dep.depend();
                     if (childOb) {  //如果子节点存在也添加一个dep
-                        debugger // Ethan: debugger 虽然页面可能用到了整个对象，但是对象中的子对象也修改了，也要触发watcher.update
+                        debugger // Ethan: debugger 标识
                         childOb.dep.depend();
                         if (Array.isArray(value)) {  //判断是否是数组 如果是数组
                             dependArray(value);   //则数组也添加dep
@@ -1558,10 +1558,11 @@
                     //新的值直接给他
                     val = newVal;
                 }
-                console.log(newVal)
+                console.log('我是水电费水电费水电费胜多负少：', newVal, key)
 
                 //observe 添加 观察者
                 childOb = !shallow && observe(newVal);
+                debugger
                 //更新数据
                 dep.notify();
             }
