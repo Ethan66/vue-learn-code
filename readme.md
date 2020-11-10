@@ -37,20 +37,6 @@ vue是采用数据劫持配合发布者-订阅者模式的方式，通过Object.
 ### Vue2.5.16源码分析
 vue.js来自https://github.com/qq281113270/vue，存在问题：没有目录，不方便查看。根据神仙朱的https://cloud.tencent.com/developer/column/79378/tag-10197的结构进行优化。
 
-#### computed
-[白话文](https://cloud.tencent.com/developer/article/1479094)
-[源码版](https://cloud.tencent.com/developer/article/1479111)
-
-##### 初始化
-初始化Vue实例时，在beforeCreate和created之间，会执行initState()函数，这个函数包含处理data，watch, props，computed等数据。处理$options.computed，遍历每一个属性，对每个属性进行Watcher实例化，把get方法和{lazy: true}传入。get函数作为watcher实例的cb和getter, watcher.dirty=lazy，脏值属性，true表示缓存watcher.value脏了，得重新缓存，初始化的时候不执行get()函数，此时watcher.value为undefined，用于存储计算结果。所有watch实例存入vm._computedWatchers和vm._watchers中。然后再遍历computed属性，将属性绑定到vm上，并设置为数据监听。将computed的set(),新get()绑定上去。当获取computed的值时，就执行新get()，判断watcher.dirty是否为true, 执行watcher.getter(), 保存到watcher.value中，把watcher.dirty改为false。
-
-##### computed里的data数据B改变
-当B改变时，会通知所有的依赖，即watcher.update()被触发，update将watcher.dirty= true。当再次读取computed里的数据时，就会触发新get()，进行更新。
-
-##### 页面P引用了computed数据C，C引用了data数据D，D修改，变化顺序是怎么样的
-其实D会同时收集C和P的watcher，当D修改后，会遍历顺序通知wather，先通知C的watcher，将this.dirty = true，此时还没有执行C的wather.getter(),值还没有更新。所以再去通知P的watcher，P的watcher执行后，重新渲染页面，需要重新获取C的值，此时因为C.watcher.dirty===true, 所以不会拿缓存值，调用C.watcher.getter()
-重复计算。
-
 #### NextTick
 [白话文](https://cloud.tencent.com/developer/article/1479325)
 [源码版](https://cloud.tencent.com/developer/article/1479324)
@@ -65,28 +51,6 @@ Vue的nextTick不止使用了setTimeout，还涉及了js的宏微任务：两个
 
 ##### NextTick的宏微任务的抉择
 本来Vue都是用微任务的，因为微任务的优先级比较高，执行比较快。Vue2.6之前是宏微任务，怎么考虑：考虑到冒泡事件，body下的div父元素和p子元素，2个元素点击事件里都有log('div')，new Promise().then(log('promise'))，结果打印的是div, promise, div, promise，我们的预期应该是宏任务走完了才走微任务，但是现在不是，假如在2个事件回调中修改了数据D，就会执行2次微任务，也就更新了2次。所以尤大大想到了在事件回调执行的时候，注册是宏任务setImmediate（表示浏览器执行完后面的其他语句后，马上执行），不是微任务，这样执行的顺序是div, div, promise, promise。
-
-#### Mixins
-[白话版](https://cloud.tencent.com/developer/article/1479108) // 面试的话没问题
-[源码版](https://cloud.tencent.com/developer/article/1479221) // 不需要断点，这里很清晰
-
-##### 什么时候合并
-vue实例化之前，全局设置了Vue.options的三个属性，components（全局组件），directives（全局指令），filters（全局过滤器）。vue实例化时候，在beforeCreate之前，调用mergeOptions方法，传入Vue.options和配置的options进行合并。
-
-##### 怎么合并
-mergeOptions函数会判断配置的options里有没有mixins属性，有的话先递归mergeOptions方法，将mixins里的配置options先合parent（Vue.options）合并，之后再遍历parent和child（当前组件的options）,进行合并。
-
-##### data()合并和生命钩子
-执行data()方法得到对象合并，相同属性的value是基本类型，用当前组件的数据，引用类型递归合并对象。
-
-##### 生命钩子和watch
-生命钩子和watch都是保存到数组，先执行全局mixins和钩子，再执行组件mixins的钩子，最后执行当前组件的钩子。
-
-##### components, direactives, filters合并
-并没有进行遍历合并，而是存在对象的原型上。obj.self_filter: 当前组件的filter，obj.__ptoto__.mixins_filter: 组件mixins的filter，obj.__proto__.__proto__.global_filter: 全局filter
-
-##### props, computed, methods
-唯一性。权重谁大用谁的，当前组件>mixins>全局
 
 #### props
 [白话版](https://cloud.tencent.com/developer/article/1479097) // 比源码清楚
