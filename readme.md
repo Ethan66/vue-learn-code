@@ -99,24 +99,6 @@ new Vue({
 
 ##### 子组件如何更新
 props是基本类型时，因为子组件对child._props做了数据劫持，所以子组件内部props通知子组件更新的。但是props对象没有对所有属性进行数据拦截，那父组件修改props对象的属性时，怎么通知子组件重新渲染？答：父组件传对象给子组件，并且父子组件都使用了这个数据，这个对象会收集父子组件的watcher，所以父组件的数据属性修改时，父组件的数据data通知子组件更新的。
-
-#### Compile
-[白话版](https://mp.weixin.qq.com/s?__biz=MzUxNjQ1NjMwNw==&mid=2247484386&idx=1&sn=b901d961488a6f52e9a14756c34d445d&chksm=f9a669feced1e0e8197c5f3c30410eef79deb3d3ab9a2352c0813ef6b5f1f8800f79f92769d7&scene=21#wechat_redirect) // 为主
-[parese](https://cloud.tencent.com/developer/article/1479312) // 看总结的上面一段
-[optimize](https://cloud.tencent.com/developer/article/1479404) // 好累，不用看
-[generate](https://cloud.tencent.com/developer/article/1479388) // 好累，不用看
-
-##### 开头
-compile是vue.prototype.$mount执行的，判断$options里的template，传入template调用compileToFunctions方法生成render函数。compileToFunctions有个baseCompile函数，baseCompile包含了parse函数, optimize函数, generate函数。
-
-##### parse
-将template生成ast（抽象语法树）：while遍历template字符串，匹配到头标签，就交给parseStartTag函数处理，转换为抽象语法树{ tag: 'div', attrs: [{class: 'name1'}] }，将抽象语法树push到stack数组里，stack最后一项表示当前正在解析的ast，这样就能明确父子关系，比如div里的p标签，stack保存的就是[div, p]，p标签解析完成，它的父亲就是div，所以把p放入div的children里，截取template字符串，此时template长度不为0，继续匹配。匹配到不是<，表示是文本，传给chars方法处理，截取tempalte，继续匹配。匹配到尾标签，将stack末尾pop()一个，表示当前元素已经解析完成。
-
-##### optimize
-将template全部转为ast节点，遍历每一个ast节点，把静态的节点标记上staticRoot: true，这样以后更新的时候，只要碰到staticRoot===true，就表示他的所有子孙都是静态节点。怎么判断是否是静态节点：不能存在指令，不能存在if, for，不能存在slot和component，是html的标签等。
-
-##### generate
-将前两部生成的ast转为render字符串，遍历ast，得到render字符串`_c('div', [  _c('span', [  _v(b) ] , _v(a) )]`，再转为render函数，render = new Function(render)，保存到vm.$options.render上，_c , _v都是创建VNode的函数
 ### Vue3源码
 Vue3源码分析。来自bilibili————YanToT————Vue源码分析
 
